@@ -1,0 +1,34 @@
+{
+    "manifest_version": 3,
+    "name": "Ordenador de Publicaciones ML",
+    "version": "1.0",
+    "description": "Reordena los productos de MercadoLibre según la calificación del vendedor.",
+    "permissions": ["activeTab", "scripting","alarms","storage","tabs"],
+    "host_permissions": [
+      "https://www.mercadolibre.com.ar/*",
+      "https://listado.mercadolibre.com.ar/*",
+      "https://9baaasalia.execute-api.us-east-2.amazonaws.com/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["https://www.mercadolibre.com.ar/*", "https://listado.mercadolibre.com.ar/*"],
+        "js": ["content.js"],
+        "run_at" : "document_idle"
+      }
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup/popup.html",
+      "default_icon": {
+        "16": "meli.png",
+        "48": "meli.png",
+        "128": "meli.png"
+      }
+    },
+    "web_accessible_resources": [{
+        "resources": ["popup/popup.css"],
+        "matches": ["<all_urls>"]
+    }]
+  }
