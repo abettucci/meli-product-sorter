@@ -45,6 +45,151 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
    
 ## Instalacaiones requeridas
 
+1. Crear una app en Dev Center de Mercado Libre.
+2. Con el app ID y el redirect URI obtener el TG code para obtener el access token, el refresh token inicial y el tiempo hasta su expiracion. Almacenar estos datos como parametros iniciales en Parameter Store para comenzar a utilizar la API de Mercado Libre y luego renovar los tokens cuando se venza el access token.
+
+
+
+Extra:
+1. Para probar los recursos de AWS de forma local se necesita primero haberse loguearse desde la terminal.
+  1.1 Logueo en AWS en una terminal de Windows:
+    ```bash
+    aws configure
+    Cuando se solicite AWS Access Key ID => es el de 22 caracteres
+    Cuando se solicite AWS Secret Access Key => es el de 40 caracteres
+    ```
+
+1.2 Construir una imagen en Docker y pushearla al repo de ECR (iniciar Docker como primer paso):
+  ```bash
+  aws ecr get-login-password --region {ECR-AWS-ZONE} | docker login --username AWS --password-stdin {AWS-ACCOUNT-ID}.dkr.ecr.{ECR-AWS-ZONE}.amazonaws.com/{ECR-REPO-NAME}
+  docker build -t my-lambda-image-test -f Dockerfile .
+  docker tag my-lambda-image-test:latest {AWS-ACCOUNT-ID}.dkr.ecr.{ECR-AWS-ZONE}.amazonaws.com/{ECR-REPO-NAME}:latest
+  docker push {AWS-ACCOUNT-ID}.dkr.ecr.{ECR-AWS-ZONE}.amazonaws.com/{ECR-REPO-NAME}:latest
+  ```
+
+1.3 Consultar costos con AWS Cost Explorer para validar no haber iniciado algun recurso que no sea gratuito.
+  1.3.1 Politicas IAM necesaria a nivel usuario:
+    ```yaml
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "ce:GetCostAndUsage",
+                  "ce:GetCostForecast",
+                  "ce:GetUsageForecast",
+                  "ce:GetReservationUtilization",
+                  "ce:DescribeCostCategoryDefinition",
+                  "ce:ListCostAllocationTags"
+              ],
+              "Resource": "*"
+          }
+      ]
+    }
+    ```
+  
+  1.3.2 Codigo a correr en la terminal para conocer los costos actuales de cada servicio en uso en un periodo de tiempo por su tiempo/volumen de uso:
+    ```bash
+    aws ce get-cost-and-usage --time-period Start=2024-09-01,End=2024-09-30 --granularity MONTHLY --metrics "BlendedCost" --group-by Type=DIMENSION,Key=SERVICE Type=TAG,Key=USAGE_TYPE
+    ```
+    
+  1.3.3 Codigo a correr en la terminal para conocer el pronostico de costos de cada servicio en un periodo de tiempo estimado:
+    ```bash
+    aws ce get-cost-forecast --time-period Start=2024-10-01,End=2024-12-31 --metric BLENDED_COST --granularity MONTHLY
+    ```
+
+ ## Políticas IAM requeridas por el rol de la funcion Lambda en AWS
+
+ 1. Obtener y colocar parametros en Parameter Store del servicio de System Manager:
+  ```yaml
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "ssm:GetParameter",
+                  "ssm:PutParameter"
+              ],
+              "Resource": "arn:aws:ssm:<your-app-aws-zone>:<your-aws-account-id>:parameter/mercado_libre/token"
+          },
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "kms:Decrypt"
+              ],
+              "Resource": "*"
+          }
+      ]
+  }
+  ```
+
+2. Obtener y colocar datos en las tablas de Dynamo DB:
+  ```yaml
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "dynamodb:PutItem",
+                  "dynamodb:GetItem",
+                  "dynamodb:Query",
+                  "dynamodb:Scan"
+              ],
+              "Resource": "arn:aws:dynamodb:<your-app-aws-zone>:<your-aws-account-id>::table/UserFilters"
+          }
+      ]
+  }
+  ```
+
+## Políticas IAM requeridas por el usuario en AWS
+
+1. Secrets Manager Read and Write secret keys: adjuntar la politica para poder acceder a los secretos guardados en el servicio de Secrets Manager y poder utlizar el ACCESS_KEY y SECRET_ACCESS_KEY de AWS.
+  ```yaml 
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "secretsmanager:GetSecretValue",
+                  "kms:Decrypt"
+              ],
+              "Resource": [
+                  "arn:aws:secretsmanager:<your-aws-region>:<your-aws-account-id>:secret:<your-first-secret-name>",
+                  "arn:aws:secretsmanager:<your-aws-region>:<your-aws-account-id>:secret:<your-second-secret-name>"
+              ]
+          }
+      ]
+  }
+  ```
+2. ECR Put and Get images: create and attach a inline policy with the following JSON for the Lambda role to be able to get images of the ECR repo:
+  ```yaml
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": [
+                  "ecr:GetDownloadUrlForLayer",
+                  "ecr:GetAuthorizationToken",
+                  "ecr:BatchCheckLayerAvailability",
+                  "ecr:BatchGetImage",
+                  "ecr:GetRepositoryPolicy",
+                  "ecr:ListImages",
+                  "ecr:PutImage",
+                  "ecr:DescribeImages",
+                  "ecr:DescribeRepositories",
+                  "ecr:GetLifecyclePolicyPreview",
+                  "ecr:GetLifecyclePolicy"
+              ],
+              "Resource": "arn:aws:ecr:<your-aws-region>:<your-aws-account-id>:repository/<your-ecr-repo-name>"
+          }
+      ]
+  }
+  ```
 
 ## Consideraciones de diseño, limitaciones y dificultades encontradas
 
