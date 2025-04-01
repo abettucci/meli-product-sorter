@@ -50,17 +50,18 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 
 
 
-**Extra**:
-**1. Para probar los recursos de AWS de forma local se necesita primero haberse loguearse desde la terminal.
-****  1.1 Logueo en AWS en una terminal de Windows:
-**  ```bash
+**Extra:**
+
+**1. Para probar los recursos de AWS de forma local se necesita primero haberse loguearse desde la terminal.**  
+  **1.1 Logueo en AWS en una terminal de Windows:**
+  ```bash
   aws configure
   Cuando se solicite AWS Access Key ID => es el de 22 caracteres
   Cuando se solicite AWS Secret Access Key => es el de 40 caracteres
   ```
 
-**1.2 Construir una imagen en Docker y pushearla al repo de ECR (iniciar Docker como primer paso):
-**  ```bash
+  **1.2 Construir una imagen en Docker y pushearla al repo de ECR (iniciar Docker como primer paso):**
+  ```bash
   aws ecr get-login-password --region {ECR-AWS-ZONE} | docker login --username AWS --password-stdin {AWS-ACCOUNT-ID}.dkr.ecr.{ECR-AWS-ZONE}.amazonaws.com/{ECR-REPO-NAME}
   docker build -t my-lambda-image-test -f Dockerfile .
   docker tag my-lambda-image-test:latest {AWS-ACCOUNT-ID}.dkr.ecr.{ECR-AWS-ZONE}.amazonaws.com/{ECR-REPO-NAME}:latest
@@ -69,7 +70,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 
 **1.3 Consultar costos con AWS Cost Explorer para validar no haber iniciado algun recurso que no sea gratuito.**
   **1.3.1 Politicas IAM necesaria a nivel usuario:**    
-  ```yaml
+    ```yaml
     {
       "Version": "2012-10-17",
       "Statement": [
@@ -88,7 +89,8 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
       ]
     }
     ```
-  **1.3.2 Codigo a correr en la terminal para conocer los costos actuales de cada servicio en uso en un periodo de tiempo por su tiempo/volumen de uso:**   
+
+  **1.3.2 Codigo a correr en la terminal para conocer los costos actuales de cada servicio en uso en un periodo de tiempo por su tiempo/volumen de uso:**
   ```bash
   aws ce get-cost-and-usage --time-period Start=2024-09-01,End=2024-09-30 --granularity MONTHLY --metrics "BlendedCost" --group-by Type=DIMENSION,Key=SERVICE Type=TAG,Key=USAGE_TYPE
   ```
