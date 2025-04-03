@@ -45,10 +45,10 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
    
 ## Instalacaiones requeridas
 
-1. Crear una app en Dev Center de Mercado Libre.
-2. Con el app ID y el redirect URI obtener el TG code para obtener el access token, el refresh token inicial y el tiempo hasta su expiracion. Almacenar estos datos como parametros iniciales en Parameter Store para comenzar a utilizar la API de Mercado Libre y luego renovar los tokens cuando se venza el access token.
+1. Crear una app en el <a href="https://developers.mercadolibre.com.ar/devcenter">Dev Center</a> de Mercado Libre y seleccionar el scope de items, o bien seguir los pasos de <a href="https://developers.mercadolibre.com.ar/es_ar/crea-una-aplicacion-en-mercado-libre-es">como crear una app</a> en la documentacion de la API de Mercado Libre.
+2. Con el app ID y el redirect URI obtener el TG code para obtener el access token, el refresh token inicial y el tiempo hasta su expiracion. Almacenar estos datos como parametros iniciales en Parameter Store para comenzar a utilizar la API de Mercado Libre y luego renovar los tokens cuando se venza el access token, o bien seguir los pasos del <a href=" https://developers.mercadolibre.com.ar/es_ar/autenticacion-y-autorizacion">flujo de autenticacion y autorizacion</a> en la documentacion de la API de Mercado Libre.
 
-
+![alt text](https://github.com/abettucci/meli-product-sorter/main/images/flujo_auth_meli.jpg "Flujo de auth de API Mercado Libre")
 
 **Extra:**
 
@@ -195,3 +195,5 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 ## Consideraciones de diseño, limitaciones y dificultades encontradas
 
 1. Como API Gateway tiene un limite de demora de respuesta de 30 segundos y los llamados a la API de Mercado Libre para devolver todo el listado de productos ya ordenado todo en un llamado demoraba mas de 30 segundos, decidi aplicar paginacion y realizar llamados de a "chunks" de items y ordenarlos en Javascript al momento de renderizar los productos y realizar recursivamente este proceso hasta llegar al final del total de items. Actualmente se hacen llamados de a 10 items y se los inyecta y ordena en el HTML a medida que se van obteniendo de la API. Cuando se realiza el siguiente llamado de los proximos 10 items, se evaluan los 20 items actuales y se los vuelve a ordenar. Esto lo realice asi para ir mostrando resultados temporales y no esperar por una respuesta entera que demore mucho y sea abrumador para el usuario.
+2. API Gateway de AWS cuenta con un free tier de 1 millon de llamados gratis.
+3. Elastic Container Registry cuenta con un free tier hasta 500 MB por mes en el total de imagenes almacenadas (esto es clave a la hora de seleccionar las librerias que no sean tan pesadas, actualmente la imagen del backend tiene un peso de 285 MB).  El costo por el excedente es de 0,1 USD/GB adicional.
