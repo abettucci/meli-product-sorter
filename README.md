@@ -48,7 +48,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 1. Crear una app en el <a href="https://developers.mercadolibre.com.ar/devcenter">Dev Center</a> de Mercado Libre y seleccionar el scope de items, o bien seguir los pasos de <a href="https://developers.mercadolibre.com.ar/es_ar/crea-una-aplicacion-en-mercado-libre-es">como crear una app</a> en la documentacion de la API de Mercado Libre.
 2. Con el app ID y el redirect URI obtener el TG code para obtener el access token, el refresh token inicial y el tiempo hasta su expiracion. Almacenar estos datos como parametros iniciales en Parameter Store para comenzar a utilizar la API de Mercado Libre y luego renovar los tokens cuando se venza el access token, o bien seguir los pasos del <a href=" https://developers.mercadolibre.com.ar/es_ar/autenticacion-y-autorizacion">flujo de autenticacion y autorizacion</a> en la documentacion de la API de Mercado Libre.
 
-![alt text](https://github.com/abettucci/meli-product-sorter/main/images/flujo_auth_meli.jpg "Flujo de auth de API Mercado Libre")
+![Flujo de auth de API Mercado Libre](https://github.com/abettucci/meli-product-sorter/blob/main/images/flujo_auth_meli.jpg)
 
 **Extra:**
 
