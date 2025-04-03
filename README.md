@@ -70,7 +70,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 
 **1.3 Consultar costos con AWS Cost Explorer para validar no haber iniciado algun recurso que no sea gratuito.**
   **1.3.1 Politicas IAM necesaria a nivel usuario:**    
-    ```yaml
+  ```yaml
     {
       "Version": "2012-10-17",
       "Statement": [
@@ -88,8 +88,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
           }
       ]
     }
-    ```
-
+  ```
   **1.3.2 Codigo a correr en la terminal para conocer los costos actuales de cada servicio en uso en un periodo de tiempo por su tiempo/volumen de uso:**
   ```bash
   aws ce get-cost-and-usage --time-period Start=2024-09-01,End=2024-09-30 --granularity MONTHLY --metrics "BlendedCost" --group-by Type=DIMENSION,Key=SERVICE Type=TAG,Key=USAGE_TYPE
@@ -195,5 +194,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 ## Consideraciones de diseño, limitaciones y dificultades encontradas
 
 1. Como API Gateway tiene un limite de demora de respuesta de 30 segundos y los llamados a la API de Mercado Libre para devolver todo el listado de productos ya ordenado todo en un llamado demoraba mas de 30 segundos, decidi aplicar paginacion y realizar llamados de a "chunks" de items y ordenarlos en Javascript al momento de renderizar los productos y realizar recursivamente este proceso hasta llegar al final del total de items. Actualmente se hacen llamados de a 10 items y se los inyecta y ordena en el HTML a medida que se van obteniendo de la API. Cuando se realiza el siguiente llamado de los proximos 10 items, se evaluan los 20 items actuales y se los vuelve a ordenar. Esto lo realice asi para ir mostrando resultados temporales y no esperar por una respuesta entera que demore mucho y sea abrumador para el usuario.
-2. API Gateway de AWS cuenta con un free tier de 1 millon de llamados gratis.
-3. Elastic Container Registry cuenta con un free tier hasta 500 MB por mes en el total de imagenes almacenadas (esto es clave a la hora de seleccionar las librerias que no sean tan pesadas, actualmente la imagen del backend tiene un peso de 285 MB).  El costo por el excedente es de 0,1 USD/GB adicional.
+2. API Gateway de AWS cuenta con un free tier de 1 millon de llamados gratis por mes.
+3. Elastic Container Registry cuenta con un free tier hasta 500 MB por mes en el total de imagenes almacenadas (esto es clave a la hora de seleccionar las librerias que no sean tan pesadas, actualmente la imagen del backend tiene un peso de 285 MB).  El costo por el excedente es de 0,1 USD/GB adicional. Por cada actualizacion del codigo en Github se ejecuta Github Actions que es un CI/CD externo a AWS y hace un rebuild de la imagen y un push a ECR, por esta transferencia de datos de Github a AWS se cobra 0,01 USD por cada GB de datos transferidos, es decir, si la imagen pesa 250 MB aprox, se necesitan 40 actualizaciones de codigo para que se cobre 0,01 USD. Por ultimo, Lambda siempre utiliza una imagen cacheada de ECR por lo que no tiene costo esa conexion, salvo que se haga un push de una iamgen nueva. En ese caso, Lambda debe hacer un nuevo pull de la iamgen y por cada 1000 requests de pull se cobra 0,001 USD.
+4. Lambda Function cuenta con un free tier de 1 millon de llamados gratis por mes. Luego se cobra 0,20 USD por cada millón de solicitudes excedentes y 0,0000166667 USD por cada GB/segundo de procesamiento hasta llegar a los primeros 6 mil millones de GB/segundo por mes.
+5. Parameter Store cuenta con un free tier por el servicio estandar, sin embargo, se cobra 0,05 USD por cada 10.000 interacciones de la API, o sea por cada 10.000 autenticaciones que se realizan.
