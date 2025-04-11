@@ -31,11 +31,30 @@ Por el momento no se están considerando los filtros que se seleccionen, por lo 
 - Almacenamiento y actualización de tokens de forma segura: Secret Manager, Parameter Store.
 - Almacenamiento de filtros (a futuro): Dynamo DB.
 - API de Mercado Libre
-
+- Monitoreo y seguridad:
+  - Alertas de CloudWatch
+  - Bot Control con WAF
+  - AWS Budget
+    
 ## Como lo realicé
 
 El hosting del desarrollo lo realicé en AWS, la API es una HTTP API en API Gateway que recibe los llamados del navegador para mostrar los ordenamientos posibles por un lado y recibe los llamados para reordenar el listado por otro. La API dispara una función Lambda que ejecuta los llamados a la API de Mercado Libre para obtener los datos solicitados. Dado el peso de las librerías utilizadas en el código fuente del backend, los archivos fueron empaquetados con Docker y subidos como una imagen a ECR que luego se linkeó a la función Lambda. Una vez obtenidos los datos, se ordenan en función del ordenamiento elegido en el script de contenido de javascript que se ejecuta en Chrome y se renderizan para mostrarlos con un formato similar al de Mercado Libre.
-Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y obtenidos de Parameter Store del servicio de System Manager de AWS. Las credenciales de AWS son obtenidas de Secrets Manager.
+Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y obtenidos de Parameter Store del servicio de System Manager de AWS. Las credenciales de AWS son obtenidas de Secrets Manager. 
+
+Por ultimo pero no menos importante, para evitar sobrecostos como consecuencia de un volumen de requests muy grande no previsto o algun bot que realice muchas llamadas seguidas, se realizaron las siguientes configuraciones:
+  - Rate Limiting:
+    - API Gateway: se configuró un Rate Limiting de 5 requests por segundo y un Burst Limit de 10 en el stage entero de la HTTP API.
+  - Bot Control WAF:
+  - AWS Budget: se configuró un zero spend budget con un periodo mensual que se renueva el primer dia de cada mes y un budgeting method fijo de 1 USD y el scope considera todos los servicios de AWS. Ademas se agregan los costos por "unblended costs" que basicamente estaria sumando los costos puros de cada servicio, sin promediar descuentos o compromisos de uso entre cuentas o regiones.
+  
+Como AWS especifica que no deberiamos depender unicamente del throttling de la API para tener control de los costos o para bloquear el acceso a una API, esto es porque:
+  - Throttling controla la velocidad, pero no el volumen mensual completo.
+  - No detiene llamadas maliciosas o tráfico anómalo (bots, scrapers, DDoS).
+  - No dispara acciones correctivas automáticas por sí solo
+Por ende ello se creó un AWS Budget y se configuró AWS WAF para tener control del trafico de bots que pueden consumir recursos en exceso. para manejar API requests.
+  
+
+Es importante resaltar que no se activó API Caching ya que dicho servicio se factura.
 
 ## Links utiles
 
@@ -144,6 +163,23 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
   }
   ```
 
+**3. Obtener metricas de consumo de servicios para controlar costos:**
+```yaml
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "cloudwatch:GetMetricStatistics",
+                "cloudwatch:PutMetricData"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
 ## Políticas IAM requeridas por el usuario en AWS
 
 **1. Secrets Manager Read and Write secret keys: adjuntar la politica para poder acceder a los secretos guardados en el servicio de Secrets Manager y poder utlizar el ACCESS_KEY y SECRET_ACCESS_KEY de AWS.**
@@ -198,3 +234,9 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 3. Elastic Container Registry cuenta con un free tier hasta 500 MB por mes en el total de imagenes almacenadas (esto es clave a la hora de seleccionar las librerias que no sean tan pesadas, actualmente la imagen del backend tiene un peso de 285 MB).  El costo por el excedente es de 0,1 USD/GB adicional. Por cada actualizacion del codigo en Github se ejecuta Github Actions que es un CI/CD externo a AWS y hace un rebuild de la imagen y un push a ECR, por esta transferencia de datos de Github a AWS se cobra 0,01 USD por cada GB de datos transferidos, es decir, si la imagen pesa 250 MB aprox, se necesitan 40 actualizaciones de codigo para que se cobre 0,01 USD. Por ultimo, Lambda siempre utiliza una imagen cacheada de ECR por lo que no tiene costo esa conexion, salvo que se haga un push de una iamgen nueva. En ese caso, Lambda debe hacer un nuevo pull de la iamgen y por cada 1000 requests de pull se cobra 0,001 USD.
 4. Lambda Function cuenta con un free tier de 1 millon de llamados gratis por mes. Luego se cobra 0,20 USD por cada millón de solicitudes excedentes y 0,0000166667 USD por cada GB/segundo de procesamiento hasta llegar a los primeros 6 mil millones de GB/segundo por mes.
 5. Parameter Store cuenta con un free tier por el servicio estandar, sin embargo, se cobra 0,05 USD por cada 10.000 interacciones de la API, o sea por cada 10.000 autenticaciones que se realizan.
+6. WAF & Shield cuenta con un free tier de manejar hasta 10 millones de solicitudes (requests) de control de bots por mes.
+
+## Aclaraciones de costos en AWS
+- 12 meses gratis: estas ofertas de la capa gratuita están disponibles exclusivamente para los nuevos clientes de AWS y solo durante doce meses a partir de la fecha de inscripción en AWS. Cuando finalicen los 12 meses de uso gratuito o si el uso de su aplicación supera las capas, tendrá que pagar las tarifas de servicio estándar por uso (consulte la página de cada servicio para obtener información completa sobre los precios). Existen restricciones; consulte las condiciones de la oferta para obtener más detalles.
+
+- Gratis para siempre: estas ofertas de la capa gratuita no vencen automáticamente al finalizar los 12 meses de la capa gratuita de AWS, sino que están disponibles tanto para clientes ya existentes como para nuevos clientes de AWS de forma indefinida.
