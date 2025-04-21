@@ -12,6 +12,9 @@
 Como últimamente estuve utilizando mucho la plataforma de Mercado Libre, me propuse como proyecto personal poder desarrollar ese ordenamiento para facilitarme la búsqueda en mis compras.
 <p>
 
+## DEPRECADO
+
+Los endpoints de la API de Mercado Libre para obtener el listado de items y los atributos de los mismos fueron bloqueados para aplicaciones de individuos y solo se pueden acceder siendo un Integrador en la plataforma de  Mercado Libre, por lo que la extensión se encuentra sin funcionar.
 
 ## Cómo funciona
 
@@ -33,7 +36,7 @@ Por el momento no se están considerando los filtros que se seleccionen, por lo 
 - API de Mercado Libre
 - Monitoreo y seguridad:
   - Alertas de CloudWatch
-  - Bot Control con WAF
+  - Bot Control con WAF (web app firewall)
   - AWS Budget
     
 ## Como lo realicé
@@ -44,7 +47,7 @@ Los tokens utilizados para conectarse a la API de Mercado Libre son guardados y 
 Por ultimo pero no menos importante, para evitar sobrecostos como consecuencia de un volumen de requests muy grande no previsto o algun bot que realice muchas llamadas seguidas, se realizaron las siguientes configuraciones:
   - Rate Limiting:
     - API Gateway: se configuró un Rate Limiting de 5 requests por segundo y un Burst Limit de 10 en el stage entero de la HTTP API.
-  - Bot Control WAF:
+  - Bot Control WAF: se configuraron reglas para controlar el origen de los requests y evitar inundar de requests la API. 
   - AWS Budget: se configuró un zero spend budget con un periodo mensual que se renueva el primer dia de cada mes y un budgeting method fijo de 1 USD y el scope considera todos los servicios de AWS. Ademas se agregan los costos por "unblended costs" que basicamente estaria sumando los costos puros de cada servicio, sin promediar descuentos o compromisos de uso entre cuentas o regiones.
   
 Como AWS especifica que no deberiamos depender unicamente del throttling de la API para tener control de los costos o para bloquear el acceso a una API, esto es porque:
@@ -53,8 +56,16 @@ Como AWS especifica que no deberiamos depender unicamente del throttling de la A
   - No dispara acciones correctivas automáticas por sí solo
 Por ende ello se creó un AWS Budget y se configuró AWS WAF para tener control del trafico de bots que pueden consumir recursos en exceso. para manejar API requests.
   
+Configuracion distribucion de carga y control de acceso con Cloudfront + WAF:
+- Crear una distribucion en Cloudfront.
+- Crear un Web ACL (access control list) en la region Global, para poder conectarse con Cloudfront para recibir llamados de cualquier servidor.
+- Crear reglas de control:
+  - Maximo de requests por IP cada X tiempo.
+  - Permitir solo IPs definidas (para ello hay que hacer unos llamados de ejemplo y ver que IP se utiliza desde MercadoLibre y si es fija. Esto se encuentra en los logs de CloudWatch de la funcion Lambda).
+  - Filtro de user-agent sospechoso
+  - Permitir requests solo con headers con la URL del listado de Mercado Libre (que "Referer" comience con "https://listado.mercadolibre.com.ar/").
 
-Es importante resaltar que no se activó API Caching ya que dicho servicio se factura.
+Es importante resaltar que no se activó API Caching ya que dicho servicio tiene un costo asociado.
 
 ## Links utiles
 
@@ -201,7 +212,7 @@ Es importante resaltar que no se activó API Caching ya que dicho servicio se fa
       ]
   }
   ```
-**2. ECR Put and Get images: create and attach a inline policy with the following JSON for the Lambda role to be able to get images of the ECR repo:**
+**2. ECR Put and Get images: crear y adjuntar la politica para que se pueda conectar una funcion Lambda a una imagen de un repo de ECR.**
   ```yaml
   {
       "Version": "2012-10-17",
@@ -227,6 +238,33 @@ Es importante resaltar que no se activó API Caching ya que dicho servicio se fa
   }
   ```
 
+**3. Habilitar logs de WAF para controlar las IP que llegan a Cloudfront**
+```yaml
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowCreateLogStreamAndPutLogEvents",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": "arn:aws:logs:*:*:log-group:/aws/waf/*:log-stream:*"
+      },
+      {
+        "Sid": "AllowDescribeLogGroupsAndStreams",
+        "Effect": "Allow",
+        "Action": [
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }
+```
+
 ## Consideraciones de diseño, limitaciones y dificultades encontradas
 
 1. Como API Gateway tiene un limite de demora de respuesta de 30 segundos y los llamados a la API de Mercado Libre para devolver todo el listado de productos ya ordenado todo en un llamado demoraba mas de 30 segundos, decidi aplicar paginacion y realizar llamados de a "chunks" de items y ordenarlos en Javascript al momento de renderizar los productos y realizar recursivamente este proceso hasta llegar al final del total de items. Actualmente se hacen llamados de a 10 items y se los inyecta y ordena en el HTML a medida que se van obteniendo de la API. Cuando se realiza el siguiente llamado de los proximos 10 items, se evaluan los 20 items actuales y se los vuelve a ordenar. Esto lo realice asi para ir mostrando resultados temporales y no esperar por una respuesta entera que demore mucho y sea abrumador para el usuario.
@@ -235,6 +273,7 @@ Es importante resaltar que no se activó API Caching ya que dicho servicio se fa
 4. Lambda Function cuenta con un free tier de 1 millon de llamados gratis por mes. Luego se cobra 0,20 USD por cada millón de solicitudes excedentes y 0,0000166667 USD por cada GB/segundo de procesamiento hasta llegar a los primeros 6 mil millones de GB/segundo por mes.
 5. Parameter Store cuenta con un free tier por el servicio estandar, sin embargo, se cobra 0,05 USD por cada 10.000 interacciones de la API, o sea por cada 10.000 autenticaciones que se realizan.
 6. WAF & Shield cuenta con un free tier de manejar hasta 10 millones de solicitudes (requests) de control de bots por mes.
+7. Como AWS Shield & WAF solo permite linkear REST API a las Web ACL y no HTTP API como la que tenia creada, se decidió no migrar de HTTP a REST y en cambio se utilizó Cloudfront asociado a la Web ACL.
 
 ## Aclaraciones de costos en AWS
 - 12 meses gratis: estas ofertas de la capa gratuita están disponibles exclusivamente para los nuevos clientes de AWS y solo durante doce meses a partir de la fecha de inscripción en AWS. Cuando finalicen los 12 meses de uso gratuito o si el uso de su aplicación supera las capas, tendrá que pagar las tarifas de servicio estándar por uso (consulte la página de cada servicio para obtener información completa sobre los precios). Existen restricciones; consulte las condiciones de la oferta para obtener más detalles.
